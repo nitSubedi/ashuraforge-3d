@@ -2,7 +2,7 @@ extends CharacterBody3D
 ## Third-person over-shoulder player controller.
 ## Movement is camera-relative. Mouse drives the camera pivot (yaw) and spring arm
 ## (pitch); the visual model turns to face movement. Combat: melee swing + magic
-## projectile, mapping to AshuraForge's Fire/Magic.
+## projectile, mapping to AshuraForge's Fire/Magic. Drives the KayKit Knight rig.
 
 @export var speed: float = 5.0
 @export var sprint_multiplier: float = 1.7
@@ -10,6 +10,8 @@ extends CharacterBody3D
 @export var gravity: float = 18.0
 @export var mouse_sensitivity: float = 0.0025
 @export var turn_speed: float = 12.0
+## If the hero runs facing backwards, flip this to PI in the inspector.
+@export var model_yaw_offset: float = 0.0
 
 @export var melee_damage: float = 35.0
 @export var magic_damage: float = 45.0
@@ -20,6 +22,13 @@ extends CharacterBody3D
 const PITCH_MIN := -1.2
 const PITCH_MAX := 0.5
 
+const ANIM_IDLE := "Idle"
+const ANIM_RUN := "Running_A"
+const ANIM_MELEE := "1H_Melee_Attack_Slice_Horizontal"
+const ANIM_CAST := "2H_Melee_Attack_Spin"
+const ANIM_HIT := "Hit_A"
+const ANIM_DEATH := "Death_A"
+
 @onready var model: Node3D = $Model
 @onready var camera_pivot: Node3D = $CameraPivot
 @onready var spring_arm: SpringArm3D = $CameraPivot/SpringArm3D
@@ -27,6 +36,7 @@ const PITCH_MAX := 0.5
 @onready var melee_hitbox: Area3D = $MeleeHitbox
 @onready var health: Health = $Health
 @onready var sfx: AudioStreamPlayer = $Sfx
+@onready var anim: AnimationPlayer = $Model/Knight/AnimationPlayer
 
 var _yaw: float = 0.0
 var _pitch: float = -0.3
@@ -34,10 +44,12 @@ var _attacking: bool = false
 var _dodging: bool = false
 var _can_dodge: bool = true
 var _invulnerable: bool = false
+var _locomotion: String = ANIM_IDLE
+var _oneshot: bool = false
+var _dead: bool = false
 
 const SFX_PUNCH := preload("res://audio/Punch.mp3")
 const SFX_FIRE := preload("res://audio/Fire.mp3")
-const SFX_MAGIC := preload("res://audio/Magic3.mp3")
 const SFX_HURT := preload("res://audio/hitHurt.wav")
 const SFX_JUMP := preload("res://audio/jump.wav")
 const PROJECTILE := preload("res://scenes/projectile.tscn")
@@ -48,10 +60,19 @@ func _ready() -> void:
 	health.damaged.connect(_on_damaged)
 	health.died.connect(_on_died)
 	Game.player_health_changed.emit(health.current, health.max_health)
+	for clip in [ANIM_IDLE, ANIM_RUN]:
+		var a := anim.get_animation(clip)
+		if a != null:
+			a.loop_mode = Animation.LOOP_LINEAR
+	anim.animation_finished.connect(_on_anim_finished)
+	model.rotation.y = PI + model_yaw_offset  # face into the room, away from the camera
+	_play_loco(ANIM_IDLE)
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _dead:
+		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		_yaw -= event.relative.x * mouse_sensitivity
 		_pitch = clamp(_pitch - event.relative.y * mouse_sensitivity, PITCH_MIN, PITCH_MAX)
@@ -80,19 +101,18 @@ func _physics_process(delta: float) -> void:
 	dir.y = 0.0
 	dir = dir.normalized()
 
-	if _dodging:
-		# Lock horizontal velocity to the dodge direction; keep gravity on y.
-		velocity.x = velocity.x
-		velocity.z = velocity.z
-	else:
+	if not _dodging:
 		var cur_speed := speed
 		if Input.is_action_pressed(&"sprint"):
 			cur_speed *= sprint_multiplier
 		velocity.x = dir.x * cur_speed
 		velocity.z = dir.z * cur_speed
 		if dir.length() > 0.1:
-			var target := atan2(dir.x, dir.z)
+			var target := atan2(dir.x, dir.z) + model_yaw_offset
 			model.rotation.y = lerp_angle(model.rotation.y, target, turn_speed * delta)
+			_play_loco(ANIM_RUN)
+		else:
+			_play_loco(ANIM_IDLE)
 
 	move_and_slide()
 
@@ -101,6 +121,7 @@ func _do_melee() -> void:
 		return
 	_attacking = true
 	_play(SFX_PUNCH)
+	_play_oneshot(ANIM_MELEE)
 	melee_hitbox.monitoring = true
 	await get_tree().create_timer(0.15).timeout
 	for body in melee_hitbox.get_overlapping_bodies():
@@ -114,6 +135,7 @@ func _do_cast() -> void:
 	if _dodging:
 		return
 	_play(SFX_FIRE)
+	_play_oneshot(ANIM_CAST)
 	var p := PROJECTILE.instantiate()
 	get_tree().current_scene.add_child(p)
 	var cam: Node3D = $CameraPivot/SpringArm3D/Camera3D
@@ -132,7 +154,7 @@ func _do_dodge() -> void:
 	var dir := (camera_pivot.global_basis.x * input.x) + (camera_pivot.global_basis.z * input.y)
 	dir.y = 0.0
 	if dir.length() < 0.1:
-		dir = -model.global_basis.z  # dodge backward-relative-to-facing if no input
+		dir = -model.global_basis.z
 	dir = dir.normalized()
 	velocity.x = dir.x * dodge_speed
 	velocity.z = dir.z * dodge_speed
@@ -143,31 +165,42 @@ func _do_dodge() -> void:
 	_can_dodge = true
 
 func take_hit(amount: float) -> void:
-	if _invulnerable:
+	if _invulnerable or _dead:
 		return
 	health.take_damage(amount)
 
 func _on_damaged(_amount: float, current: float) -> void:
 	_play(SFX_HURT)
 	Game.player_health_changed.emit(current, health.max_health)
-	_flash()
+	if not _dead:
+		_play_oneshot(ANIM_HIT)
 
 func _on_died() -> void:
+	_dead = true
+	_play_oneshot(ANIM_DEATH)
 	Game.report_player_died()
 	set_physics_process(false)
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
-func _flash() -> void:
-	var mesh := model.get_node_or_null(^"Mesh") as MeshInstance3D
-	if mesh == null:
+## --- animation helpers -----------------------------------------------------
+
+func _play_loco(clip: String) -> void:
+	_locomotion = clip
+	if not _oneshot and not _dead and anim.current_animation != clip:
+		anim.play(clip, 0.15)
+
+func _play_oneshot(clip: String) -> void:
+	if not anim.has_animation(clip):
 		return
-	var mat := mesh.get_active_material(0)
-	if mat is StandardMaterial3D:
-		var orig: Color = mat.albedo_color
-		mat.albedo_color = Color(1, 0.4, 0.4)
-		await get_tree().create_timer(0.1).timeout
-		mat.albedo_color = orig
+	_oneshot = true
+	anim.play(clip, 0.1)
+
+func _on_anim_finished(finished: String) -> void:
+	if _dead or finished == _locomotion:
+		return
+	_oneshot = false
+	anim.play(_locomotion, 0.15)
 
 func _play(stream: AudioStream) -> void:
 	if stream == null:

@@ -15,8 +15,13 @@ A 3D roguelike reimagining of [AshuraForge](https://github.com/nitSubedi/AshuraF
 - Player health + HUD, win (clear room) / lose (death) + restart
 - Reuses the original game's free SFX
 
-Currently runs with **placeholder primitive meshes**; CC0 art is being dropped in
-(see `CREDITS.md`). Game systems are art-independent, so visuals swap in cleanly.
+Now running with **CC0 KayKit art** — an animated Knight hero, animated Skeleton
+enemies, and a torch-lit modular dungeon room (see `CREDITS.md`).
+
+## Verify
+
+- Logic tests: `/Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s res://tools/test_logic.gd`
+- Screenshot a frame: `/Applications/Godot.app/Contents/MacOS/Godot --path . -s res://tools/screenshot.gd` (writes `screenshot.png`)
 
 ## Controls
 

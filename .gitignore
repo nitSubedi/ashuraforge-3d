@@ -11,3 +11,6 @@ export_presets.cfg
 # Builds
 build/
 *.app
+
+# Transient debug render
+screenshot.png
