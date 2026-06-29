@@ -14,3 +14,5 @@ build/
 
 # Transient debug render
 screenshot.png
+tools/gen/.venv/
+assets/generation/out/
