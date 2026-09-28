@@ -7,6 +7,7 @@ Later stages add the outfit, hair, tattoos, bakes and the GLB export.
 Needs: MPFB2 extension + MakeHuman system assets (CC0) installed.
 Run:   /Applications/Blender.app/Contents/MacOS/Blender --background --python tools/gen/make_hero.py
        HERO_RENDER=1 also renders preview shots to assets/generation/out/hero_*.png
+       HERO_EXPORT=1 bakes all materials and writes assets/characters/hero_mpfb/hero.glb
 """
 import math
 import os
@@ -18,6 +19,7 @@ from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import hero_outfit  # noqa: E402
+import hero_textures  # noqa: E402
 
 from bl_ext.blender_org.mpfb.services.assetservice import AssetService
 from bl_ext.blender_org.mpfb.services.humanservice import HumanService
@@ -39,6 +41,13 @@ FACE = {
     "chin-width-decr": 0.35, "chin-prominent-incr": 0.3, "chin-triangle": 0.25,
     "nose-scale-horiz-decr": 0.35, "nose-point-width-decr": 0.3,
     "nose-greek-incr": 0.2, "nose-hump-decr": 0.3,
+    # Sharper, gaunter vampire-aristocrat read: V-shaped lean face, slightly
+    # hooded narrow eyes with lifted outer corners, low intense brow.
+    "head-invertedtriangular": 0.35, "head-fat-decr": 0.4,
+    "l-eye-height2-decr": 0.25, "r-eye-height2-decr": 0.25,
+    "l-eye-corner2-up": 0.2, "r-eye-corner2-up": 0.2,
+    "l-eye-eyefold-down": 0.2, "r-eye-eyefold-down": 0.2,
+    "eyebrows-trans-down": 0.2, "eyebrows-angle-down": 0.25,
 }
 
 BODYPARTS = {  # asset subdir -> asset name
@@ -177,10 +186,68 @@ def preview(body):
         print("RENDERED", scene.render.filepath)
 
 
+EXPORT = os.path.join(ROOT, "assets", "characters", "hero_mpfb", "hero.glb")
+TEX_DIR = os.path.join(ROOT, "assets", "characters", "hero_mpfb", "textures")
+GROUPS = {  # atlas name -> outfit keys (one 2K texture set each)
+    "Coat": ["coat_upper", "coat_skirt", "collar", "lapels"],
+    "Leather": ["boots", "gloves", "bracers", "belt_L", "belt_R", "buckle_L", "buckle_R"],
+    "Cloth": ["breeches", "sash"],
+}
+
+
+def export(body, rig, parts, outfit):
+    """Bake every material to PBR maps, join garments per atlas, write hero.glb."""
+    os.makedirs(TEX_DIR, exist_ok=True)
+    for key in ("tongue", "teeth"):          # the mouth never opens
+        if key in parts:
+            bpy.data.objects.remove(parts.pop(key))
+    meshes = []
+    for name, keys in GROUPS.items():
+        objs = [outfit[k] for k in keys if k in outfit]
+        for ob in objs:                      # join drops non-active modifiers: apply first
+            hero_textures._only(ob)
+            for m in list(ob.modifiers):
+                if m.type != "ARMATURE":
+                    bpy.ops.object.modifier_apply(modifier=m.name)
+        joined = hero_textures.join(objs, "Hero" + name)
+        hero_textures.bake_object(joined, 2048, TEX_DIR, unwrap=True)
+        meshes.append(joined)
+    hero_textures.bake_object(body, 2048, TEX_DIR)
+    meshes.append(body)
+    sizes = {"eyes": 1024, "eyebrows": 1024, "eyelashes": 512, "hair": 2048}
+    for key, ob in parts.items():
+        hero_textures.bake_object(ob, sizes.get(key, 1024), TEX_DIR,
+                                  alpha=key in ("hair", "eyebrows", "eyelashes"))
+        meshes.append(ob)
+    tris = 0
+    dg = bpy.context.evaluated_depsgraph_get()
+    for ob in meshes:
+        me = ob.evaluated_get(dg).to_mesh()
+        me.calc_loop_triangles()
+        tris += len(me.loop_triangles)
+        ob.evaluated_get(dg).to_mesh_clear()
+    print("TOTAL_TRIS", tris)
+    bpy.ops.object.select_all(action="DESELECT")
+    rig.select_set(True)
+    for ob in meshes:
+        ob.select_set(True)
+    bpy.ops.export_scene.gltf(filepath=EXPORT, export_format="GLB", use_selection=True,
+                              export_apply=False, export_skins=True, export_morph=False,
+                              export_image_format="AUTO", export_yup=True)
+    print("HERO_EXPORTED", EXPORT)
+
+
 if __name__ == "__main__":
     body, rig, parts = build_body()
     print("BODY", body.dimensions, "PARTS", sorted(parts))
     outfit = hero_outfit.build(body, rig)
     print("OUTFIT", sorted(outfit))
+    B = hero_outfit.Body(body, rig)
+    hero_textures.detail()
+    hero_textures.tattoos(body, B.head("Spine2") + Vector((0.0, -0.1, 0.02)), B.z("Neck"))
+    if "eyes" in parts:
+        hero_textures.eyes(parts["eyes"])
     if os.environ.get("HERO_RENDER") == "1":
         preview(body)
+    if os.environ.get("HERO_EXPORT") == "1":
+        export(body, rig, parts, outfit)
