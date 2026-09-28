@@ -74,7 +74,6 @@ func _physics_process(delta: float) -> void:
 			_passed[e] = true
 			var v: Vector3 = player.flight_velocity
 			hit(e, PASS_DMG, v.normalized() * 4.0 + Vector3.UP * 2.0, 0.04)
-			burst((e as Node3D).global_position + Vector3(0, 1, 0), Color(0.6, 0.02, 0.02), 12, 4.0, 0.4)
 	if _t <= 0.0:
 		end()
 
@@ -89,7 +88,6 @@ func _end() -> void:
 	# Landing shockwave.
 	var p := player.global_position
 	burst(p + Vector3(0, 0.3, 0), Color(0.03, 0.03, 0.04, 0.7), 50, 8.0, 0.7, 0.9, 0.0, false)
-	burst(p + Vector3(0, 0.3, 0), Color(0.8, 0.05, 0.03), 24, 7.0, 0.5, 0.2, 0.3)
 	for e in enemies_near(p, LAND_R):
 		var away: Vector3 = (e as Node3D).global_position - p
 		away.y = 0.0

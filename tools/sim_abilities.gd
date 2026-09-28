@@ -31,6 +31,10 @@ func _physics_process(_d: float) -> bool:
 	if _f in [390, 690, 990]:
 		print("  pack hp lost so far=%.0f  flying=%s  pos=%s" % [_hp0 - _hp(), _pl.flying, _pl.global_position.snapped(Vector3(0.1, 0.1, 0.1))])
 	# Non-headless: grab frames mid-power (blade orbit/strike, meteor impacts, smoke flight).
-	if _f in [130, 175, 470, 505, 720, 740]:
+	if _f == 250:   # force a kill to check the final dismemberment + blood
+		var es := get_nodes_in_group(&"enemies")
+		es.sort_custom(func(a, b): return a.global_position.distance_to(_pl.global_position) < b.global_position.distance_to(_pl.global_position))
+		es[0].take_damage(9999.0, 999999, Vector3(0, 2, 3))
+	if DisplayServer.get_name() != "headless" and _f in [120, 300, 318, 470, 505, 720]:
 		get_root().get_texture().get_image().save_png("res://assets/generation/out/power_%d.png" % _f)
 	return _f > 1000
