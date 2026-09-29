@@ -18,7 +18,7 @@ const FX := preload("res://scripts/fx/fx.gd")
 
 const GROUND_HALF := 120.0  # ground radius that follows the player (feels infinite)
 const CITY_MODE := true      # spawn inside the corrupted OSM city instead of the empty expanse
-const CITY_SCALE := 2.4      # scale the OSM city up so streets are walkable/fight-able
+const CITY_SCALE := 1.0      # OSM data is in real metres: 1:1 keeps the hero life-size (2.4 dwarfed him)
 
 var _ground: Node3D
 var _ground_col: Node3D

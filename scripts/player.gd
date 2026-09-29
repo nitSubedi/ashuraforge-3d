@@ -146,7 +146,7 @@ const FX := preload("res://scripts/fx/fx.gd")
 const PostFX := preload("res://scripts/fx/post_fx.gd")
 const WeaponTrail := preload("res://scripts/fx/weapon_trail.gd")
 const RIM := preload("res://assets/shaders/rim.gdshader")
-const BASE_FOV := 68.0
+const BASE_FOV := 58.0   # close over-shoulder framing (GoW/Witcher-like)
 var _trail_weapon: WeaponTrail
 var _trail_feet: Array = []
 var flight_velocity := Vector3.ZERO
