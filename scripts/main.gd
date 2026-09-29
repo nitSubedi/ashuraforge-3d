@@ -13,6 +13,8 @@ const CITY := preload("res://assets/city/manhattan.glb")
 const BUILDING_SHADER := preload("res://assets/shaders/building_hell.gdshader")
 const ROAD_SHADER := preload("res://assets/shaders/road_blood.gdshader")
 const CityStreamer := preload("res://scripts/city_streamer.gd")
+const PostFX := preload("res://scripts/fx/post_fx.gd")
+const FX := preload("res://scripts/fx/fx.gd")
 
 const GROUND_HALF := 120.0  # ground radius that follows the player (feels infinite)
 const CITY_MODE := true      # spawn inside the corrupted OSM city instead of the empty expanse
@@ -21,6 +23,7 @@ const CITY_SCALE := 2.4      # scale the OSM city up so streets are walkable/fig
 var _ground: Node3D
 var _ground_col: Node3D
 var _embers: Node3D
+var _ash: Node3D
 var _player: Node3D
 var _city_mesh_count := 0
 var _growth_count := 0
@@ -37,6 +40,9 @@ func _ready() -> void:
 	else:
 		_build_world()
 	_spawn_embers()
+	_spawn_ash()
+	_apply_grade()
+	add_child(PostFX.new())
 	_spawn_dummy()
 	_warmup_and_fade_in()
 	var enemies := get_tree().get_nodes_in_group(&"enemies")
@@ -406,6 +412,96 @@ func _process(_delta: float) -> void:
 		_ground_col.global_position = Vector3(p.x, -0.5, p.z)
 	if _embers:
 		_embers.global_position = Vector3(p.x, 4.0, p.z)
+	if _ash:
+		_ash.global_position = Vector3(p.x, 14.0, p.z)
+
+## Cinematic grade on top of the lighting: a baked 3D colour LUT (deep crimson
+## lifted shadows, warm amber highlights, slightly calmer mids, gentle S-curve),
+## screen-space reflections for the wet bloody streets, AgX tonemapping.
+func _apply_grade() -> void:
+	var we := get_node_or_null(^"WorldEnvironment") as WorldEnvironment
+	if we == null or we.environment == null:
+		return
+	var env := we.environment
+	env.tonemap_mode = Environment.TONE_MAPPER_AGX
+	env.tonemap_exposure = 1.0
+	env.adjustment_enabled = true
+	env.adjustment_color_correction = _grade_lut()
+	env.ssr_enabled = true
+	env.ssr_max_steps = 48
+	env.ssr_fade_in = 0.15
+	env.ssr_fade_out = 2.0
+	env.ssr_depth_tolerance = 0.3
+	env.ssao_enabled = true
+	env.ssao_radius = 1.6
+	env.ssao_intensity = 2.0
+	env.ssao_power = 1.4
+
+func _grade_lut() -> ImageTexture3D:
+	const N := 17
+	var layers: Array[Image] = []
+	for bz in N:
+		var img := Image.create(N, N, false, Image.FORMAT_RGB8)
+		for gy in N:
+			for rx in N:
+				var c := Color(rx / float(N - 1), gy / float(N - 1), bz / float(N - 1))
+				img.set_pixel(rx, gy, _grade(c))
+		layers.append(img)
+	var tex := ImageTexture3D.new()
+	tex.create(Image.FORMAT_RGB8, N, N, N, false, layers)
+	return tex
+
+static func _grade(c: Color) -> Color:
+	var l := c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722
+	var v := Vector3(c.r, c.g, c.b)
+	v = Vector3(l, l, l).lerp(v, 0.9)                           # calmer mids
+	var sh := pow(1.0 - l, 2.0)
+	v += Vector3(0.035, 0.0, 0.018) * sh                          # crimson-violet shadow lift
+	var hi := smoothstep(0.55, 1.0, l)
+	v = v.lerp(v * Vector3(1.04, 0.93, 0.8), hi * 0.6)            # warm amber highlights
+	for i in 3:                                                   # gentle S-curve
+		var x: float = clampf(v[i], 0.0, 1.0)
+		v[i] = lerpf(x, x * x * (3.0 - 2.0 * x), 0.22)
+	return Color(clampf(v.x, 0, 1), clampf(v.y, 0, 1), clampf(v.z, 0, 1))
+
+## Grey ash drifting down through the air around the player.
+func _spawn_ash() -> void:
+	var ash := GPUParticles3D.new()
+	ash.name = "Ash"
+	ash.amount = 700
+	ash.lifetime = 9.0
+	ash.preprocess = 6.0
+	ash.visibility_aabb = AABB(Vector3(-40, -20, -40), Vector3(80, 40, 80))
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = Vector3(30, 2, 30)
+	pm.direction = Vector3(0.2, -1, 0.1)
+	pm.spread = 20.0
+	pm.initial_velocity_min = 0.6
+	pm.initial_velocity_max = 1.4
+	pm.gravity = Vector3(0.15, -0.25, 0.05)
+	pm.turbulence_enabled = true
+	pm.turbulence_noise_strength = 0.6
+	pm.turbulence_noise_scale = 3.0
+	pm.scale_min = 0.012     # fine flecks — large quads read as snow/bokeh near the camera
+	pm.scale_max = 0.028
+	var fade := Gradient.new()
+	fade.set_color(0, Color(0.35, 0.33, 0.32, 0.0))
+	fade.add_point(0.15, Color(0.3, 0.28, 0.27, 0.45))
+	fade.set_color(fade.get_point_count() - 1, Color(0.3, 0.28, 0.27, 0.0))
+	var ramp := GradientTexture1D.new()
+	ramp.gradient = fade
+	pm.color_ramp = ramp
+	ash.process_material = pm
+	var q := QuadMesh.new()
+	q.size = Vector2(1, 1)
+	var am := FX.particle_mat(Color.WHITE, false)
+	am.distance_fade_min_distance = 2.5     # ash only reads at a distance
+	am.distance_fade_max_distance = 6.0
+	q.material = am
+	ash.draw_pass_1 = q
+	add_child(ash)
+	_ash = ash
 
 func _spawn_embers() -> void:
 	var emb := GPUParticles3D.new()
