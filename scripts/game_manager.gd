@@ -22,7 +22,14 @@ func _setup_input_map() -> void:
 	_bind_key(&"dodge", KEY_CTRL)
 	_bind_key(&"restart", KEY_R)
 	_bind_mouse(&"attack", MOUSE_BUTTON_LEFT)
-	_bind_mouse(&"cast", MOUSE_BUTTON_RIGHT)
+	_bind_mouse(&"kick", MOUSE_BUTTON_RIGHT)
+	_bind_key(&"attack", KEY_J)   # laptop-friendly: J = cane (hand)
+	_bind_key(&"kick", KEY_K)     # laptop-friendly: K = kick (foot)
+	_bind_key(&"stance", KEY_Q)   # draw / sheathe the cane-sword
+	_bind_key(&"ability_1", KEY_1)   # Phantom Blade
+	_bind_key(&"ability_2", KEY_2)   # Hellfire Rain
+	_bind_key(&"ability_3", KEY_3)   # Wraithwing
+	_bind_key(&"cast", KEY_E)  # magic deferred; kept on E for later
 
 func _bind_key(action: StringName, keycode: Key) -> void:
 	if not InputMap.has_action(action):

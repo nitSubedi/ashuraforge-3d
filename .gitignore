@@ -14,3 +14,29 @@ build/
 
 # Transient debug render
 screenshot.png
+tools/gen/.venv/
+assets/generation/out/
+
+# Local machine / agent config (absolute paths, per-user settings)
+.mcp.json
+.claude/
+
+# Debug renders
+screenshot*.png
+screenshot*.png.import
+
+# Regenerable build output
+# - city chunks: tools/bake_city.gd
+assets/city/chunks/
+# - bake intermediates (already embedded in hero.glb)
+assets/characters/hero_mpfb/textures/
+# - throwaway retarget spike
+assets/characters/hero_mpfb/spike.glb*
+
+# Raw Mixamo sources are NOT redistributed (Adobe Mixamo terms: no standalone
+# redistribution). Re-download with mixamo-mcp/tools/download_*.py — see README.
+assets/animations/mixamo/*.fbx
+assets/animations/mixamo/*.fbx.import
+assets/animations/mixamo_xbot/
+assets/enemies/xbot_rigged.glb*
+assets/enemies/enemy.tscn

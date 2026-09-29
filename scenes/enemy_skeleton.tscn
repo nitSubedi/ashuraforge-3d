@@ -14,6 +14,7 @@ collision_mask = 3
 script = ExtResource("1")
 
 [node name="Model" type="Node3D" parent="."]
+transform = Transform3D(0.8, 0, 0, 0, 0.8, 0, 0, 0, 0.8, 0, 0, 0)
 
 [node name="Skeleton_Warrior" parent="Model" instance=ExtResource("3")]
 

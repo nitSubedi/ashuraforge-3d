@@ -28,3 +28,22 @@ Source repos (CC0):
 - https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0
 - https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0
 - Author's page: https://kaylousberg.itch.io/ (CC0)
+
+## City — OpenStreetMap (ODbL)
+
+`assets/city/manhattan.glb` is built from OpenStreetMap building footprints,
+© [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, available
+under the Open Database License (ODbL). Exported with
+[map3d](https://github.com/cartesiancs/map3d) (MIT).
+
+## Hero base mesh — MPFB2 / MakeHuman (CC0)
+
+The hero body is generated with [MPFB2](https://github.com/makehumancommunity/mpfb2)
+using the MakeHuman system assets (CC0). Outfit, hair styling, tattoos and textures
+are produced by this project's own Blender scripts (`tools/gen/`).
+
+## Animations — Mixamo (Adobe)
+
+Character animations come from [Mixamo](https://www.mixamo.com). Raw Mixamo files
+are not redistributed in this repository; only the built game scenes that use them
+are included. The placeholder enemy uses Mixamo's X Bot character.
