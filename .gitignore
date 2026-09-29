@@ -16,3 +16,19 @@ build/
 screenshot.png
 tools/gen/.venv/
 assets/generation/out/
+
+# Local machine / agent config (absolute paths, per-user settings)
+.mcp.json
+.claude/
+
+# Debug renders
+screenshot*.png
+screenshot*.png.import
+
+# Regenerable build output
+# - city chunks: tools/bake_city.gd
+assets/city/chunks/
+# - bake intermediates (already embedded in hero.glb)
+assets/characters/hero_mpfb/textures/
+# - throwaway retarget spike
+assets/characters/hero_mpfb/spike.glb*
