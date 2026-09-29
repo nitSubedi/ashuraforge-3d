@@ -468,7 +468,7 @@ static func _grade(c: Color) -> Color:
 func _spawn_ash() -> void:
 	var ash := GPUParticles3D.new()
 	ash.name = "Ash"
-	ash.amount = 700
+	ash.amount = 350
 	ash.lifetime = 9.0
 	ash.preprocess = 6.0
 	ash.visibility_aabb = AABB(Vector3(-40, -20, -40), Vector3(80, 40, 80))
@@ -483,12 +483,12 @@ func _spawn_ash() -> void:
 	pm.turbulence_enabled = true
 	pm.turbulence_noise_strength = 0.6
 	pm.turbulence_noise_scale = 3.0
-	pm.scale_min = 0.012     # fine flecks — large quads read as snow/bokeh near the camera
-	pm.scale_max = 0.028
+	pm.scale_min = 0.006     # tiny DARK flecks — pale soft quads read as snow/clouds
+	pm.scale_max = 0.014
 	var fade := Gradient.new()
-	fade.set_color(0, Color(0.35, 0.33, 0.32, 0.0))
-	fade.add_point(0.15, Color(0.3, 0.28, 0.27, 0.45))
-	fade.set_color(fade.get_point_count() - 1, Color(0.3, 0.28, 0.27, 0.0))
+	fade.set_color(0, Color(0.05, 0.045, 0.045, 0.0))
+	fade.add_point(0.15, Color(0.06, 0.05, 0.05, 0.8))
+	fade.set_color(fade.get_point_count() - 1, Color(0.04, 0.035, 0.035, 0.0))
 	var ramp := GradientTexture1D.new()
 	ramp.gradient = fade
 	pm.color_ramp = ramp
