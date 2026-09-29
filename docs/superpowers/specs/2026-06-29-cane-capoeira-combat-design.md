@@ -63,12 +63,24 @@ animation IDs are global), then re-merged into `hero.tscn` by `build_hero.gd`.
 
 ## Cane-sword prop
 
-- A **simple built cane**: thin cylinder shaft + handle/knob (a couple of
-  `MeshInstance3D` primitives, dark material).
-- Mounted on a `BoneAttachment3D` bound to the **right-hand bone** of the hero's
-  `Skeleton3D`, added in `build_hero.gd` so it's part of `hero.tscn` and always
-  held. Bone name resolved from the skeleton at build time.
+- A **built cane with a curved (crook) handle**: a thin shaft (`CylinderMesh`)
+  plus a J-hook handle approximated by an arc of small cylinder segments; dark
+  material. The crook is deliberate — it's the **climbing hook** (see below).
+- Mounted on a `BoneAttachment3D` bound to **`mixamorig_RightHand`** (bone 10) of
+  the hero's `Skeleton3D`, added in `build_hero.gd` so it's part of `hero.tscn`
+  and always held.
+- **Two grips, switched by locomotion state** (cane local transform on the mount):
+  - **Walking** → held by the handle, shaft angled down like a walking stick.
+  - **Running / jumping / fighting** → gripped at the **middle** (staff/combat grip).
+  `player.gd` sets the active grip when locomotion state changes.
 - Deferred: sword-unsheathe animation/logic; a nicer/generated cane mesh.
+
+## Related future mechanic: cane-hook wall climb
+
+The curved handle is designed so the hero can **hook it on tall walls/ledges and
+climb**. This is a separate **traversal slice** (its own spec) built after combat;
+this slice only ensures the cane geometry (crook) and a climbable-wall concept
+are compatible. Not implemented here.
 
 ## Hit detection
 
