@@ -32,3 +32,11 @@ assets/city/chunks/
 assets/characters/hero_mpfb/textures/
 # - throwaway retarget spike
 assets/characters/hero_mpfb/spike.glb*
+
+# Raw Mixamo sources are NOT redistributed (Adobe Mixamo terms: no standalone
+# redistribution). Re-download with mixamo-mcp/tools/download_*.py — see README.
+assets/animations/mixamo/*.fbx
+assets/animations/mixamo/*.fbx.import
+assets/animations/mixamo_xbot/
+assets/enemies/xbot_rigged.glb*
+assets/enemies/enemy.tscn
