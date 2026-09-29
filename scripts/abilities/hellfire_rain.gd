@@ -130,7 +130,7 @@ func _spawn_meteor(ground: Vector3) -> void:
 	_meteors.append([node, start, ground + Vector3(0, 0.3, 0), 0.0])
 
 func _impact(p: Vector3) -> void:
-	burst(p, Color(1.0, 0.45, 0.08), 36, 9.0, 0.7, 0.3, 1.0)
+	burst(p, Color(0.75, 0.28, 0.05), 22, 8.0, 0.5, 0.16, 1.0)
 	burst(p, Color(0.12, 0.09, 0.09, 0.6), 16, 3.0, 1.2, 1.2, 0.1, false)   # smoke
 	for e in enemies_near(p, IMPACT_R):
 		var away: Vector3 = (e as Node3D).global_position - p
