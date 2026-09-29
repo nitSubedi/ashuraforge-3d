@@ -1,10 +1,10 @@
 extends Node3D
 ## Streams the baked city chunks (tools/bake_city.gd) around the player, the
 ## way open-world games partition their worlds:
-##   - always keep chunks within NEAR of the player (and of where the player
-##     will be in LOOKAHEAD seconds, from their velocity),
-##   - out to FAR, keep only chunks inside the camera's view cone (what the
-##     player is looking at), widening the cone a little for camera turns,
+##   - keep EVERY chunk within FAR of the player loaded, in all directions —
+##     loading only what the camera faces made buildings pop in as you turned,
+##   - the camera's view cone and the velocity lookahead only set the ORDER:
+##     what the player is looking at / heading toward loads first,
 ##   - load on a background thread (ResourceLoader threaded requests), and
 ##     instance at most ADD_PER_FRAME chunks per frame so streaming never hitches,
 ##   - unload with hysteresis (UNLOAD > FAR) so boundary chunks don't thrash.
@@ -82,17 +82,21 @@ func _process(delta: float) -> void:
 	fwd.y = 0.0
 	fwd = fwd.normalized()
 	var ahead := p + _vel * LOOKAHEAD
-	# Nearest-first so what's closest pops in first.
+	# Priority: distance, halved for chunks in view or on the predicted path.
+	var score := {}
+	for i in _chunks.size():
+		var c: Dictionary = _chunks[i]
+		var d := _flat_dist(c, p)
+		var to: Vector3 = c["center"] - p
+		to.y = 0.0
+		var favoured := to.normalized().dot(fwd) > VIEW_DOT or _flat_dist(c, ahead) < NEAR
+		score[i] = d * (0.5 if favoured else 1.0)
 	var order := range(_chunks.size())
-	order.sort_custom(func(a, b): return _flat_dist(_chunks[a], p) < _flat_dist(_chunks[b], p))
+	order.sort_custom(func(a, b): return score[a] < score[b])
 	for i in order:
 		var c: Dictionary = _chunks[i]
 		var d := _flat_dist(c, p)
-		var wanted := d < NEAR or _flat_dist(c, ahead) < NEAR
-		if not wanted and d < FAR:
-			var to: Vector3 = c["center"] - p
-			to.y = 0.0
-			wanted = to.normalized().dot(fwd) > VIEW_DOT
+		var wanted := d < FAR or _flat_dist(c, ahead) < NEAR
 		if wanted and c["state"] == "out":
 			ResourceLoader.load_threaded_request(c["file"], "PackedScene", true)
 			c["state"] = "loading"
