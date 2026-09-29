@@ -8,6 +8,8 @@ var cost := 30.0
 var cooldown := 8.0
 var cooldown_left := 0.0
 var active := false
+var aimable := false          # hold the key to aim, release to cast
+var aiming := false
 
 func can_activate() -> bool:
 	return not active
@@ -15,6 +17,13 @@ func can_activate() -> bool:
 func activate() -> void:
 	active = true
 	_activate()
+
+## Aimable powers: key held -> begin_aim(), key released -> the system casts.
+func begin_aim() -> void:
+	aiming = true
+
+func cancel_aim() -> void:
+	aiming = false
 
 ## Pressing the key while active (e.g. land Wraithwing early). Default: no-op.
 func reactivate() -> void:

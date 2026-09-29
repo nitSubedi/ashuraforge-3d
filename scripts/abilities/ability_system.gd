@@ -49,8 +49,20 @@ func try_activate(i: int) -> bool:
 
 func _unhandled_input(event: InputEvent) -> void:
 	for i in slots.size():
-		if event.is_action_pressed(StringName("ability_%d" % (i + 1))):
-			try_activate(i)
+		var action := StringName("ability_%d" % (i + 1))
+		var a = slots[i]
+		if event.is_action_pressed(action):
+			if a.aimable and not a.active:
+				if _affordable(a):
+					a.begin_aim()        # hold to place the target...
+			else:
+				try_activate(i)
+		elif event.is_action_released(action) and a.aimable and a.aiming:
+			try_activate(i)              # ...release to cast there
+			a.cancel_aim()
+
+func _affordable(a) -> bool:
+	return a.cooldown_left <= 0.0 and blood >= a.cost and a.can_activate()
 
 func _process(delta: float) -> void:
 	for a in slots:
