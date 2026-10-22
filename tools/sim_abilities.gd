@@ -35,6 +35,6 @@ func _physics_process(_d: float) -> bool:
 		var es := get_nodes_in_group(&"enemies")
 		es.sort_custom(func(a, b): return a.global_position.distance_to(_pl.global_position) < b.global_position.distance_to(_pl.global_position))
 		es[0].take_damage(9999.0, 999999, Vector3(0, 2, 3))
-	if DisplayServer.get_name() != "headless" and _f in [120, 300, 318, 470, 505, 720]:
+	if DisplayServer.get_name() != "headless" and _f in [120, 318, 505]:
 		get_root().get_texture().get_image().save_png("res://assets/generation/out/power_%d.png" % _f)
 	return _f > 1000

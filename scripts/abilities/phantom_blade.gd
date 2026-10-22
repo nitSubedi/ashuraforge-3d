@@ -98,7 +98,7 @@ func _process(delta: float) -> void:
 					var away := (aim - player.global_position)
 					away.y = 0.0
 					hit(_target, DAMAGE, away.normalized() * 3.0 + Vector3.UP * 1.5, 0.06)
-					burst(aim, Color(0.32, 0.34, 0.42), 6, 5.0, 0.15, 0.04)   # steel spark (dim: bloom inflates bright sparks into orbs)
+					FX.sparks(world(), aim, -to)   # sharp streaking sparks, not a soft cloud
 					_blade.global_position = aim + to.normalized() * 0.6   # follow through
 					_state = "return"
 					_gap = STRIKE_GAP
@@ -162,7 +162,6 @@ func _end() -> void:
 		_trail.queue_free()
 		_trail = null
 	if _blade:
-		burst(_blade.global_position, Color(0.3, 0.32, 0.4), 6, 2.0, 0.2, 0.04)
 		_blade.queue_free()
 		_blade = null
 	for n in _hidden:

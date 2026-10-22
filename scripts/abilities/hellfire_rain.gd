@@ -19,15 +19,80 @@ var _queue: Array = []        # [spawn_time, offset]
 var _meteors: Array = []      # [node, start, end, t]
 var _burns: Array = []        # [node, pos, time_left, tick]
 var _clock := 0.0
-var _marker: MeshInstance3D
+var _marker: Decal
+
+const AIM_RANGE := 25.0
 
 func _init() -> void:
 	display_name = "Hellfire Rain"
 	cost = 50.0
 	cooldown = 12.0
+	aimable = true
+
+# --- aiming: a subtle ground ring that follows the camera's aim point --------
+
+static var _ring_tex: GradientTexture2D
+
+static func _ring() -> GradientTexture2D:
+	if _ring_tex == null:
+		var g := Gradient.new()
+		g.set_color(0, Color(1.0, 0.35, 0.1, 0.0))
+		g.add_point(0.80, Color(1.0, 0.35, 0.1, 0.0))
+		g.add_point(0.90, Color(1.0, 0.4, 0.12, 0.55))
+		g.add_point(0.96, Color(1.0, 0.35, 0.1, 0.0))
+		g.set_color(g.get_point_count() - 1, Color(1.0, 0.35, 0.1, 0.0))
+		g.add_point(0.02, Color(1.0, 0.4, 0.12, 0.35))    # tiny centre dot
+		g.add_point(0.05, Color(1.0, 0.4, 0.12, 0.0))
+		_ring_tex = GradientTexture2D.new()
+		_ring_tex.gradient = g
+		_ring_tex.fill = GradientTexture2D.FILL_RADIAL
+		_ring_tex.fill_from = Vector2(0.5, 0.5)
+		_ring_tex.fill_to = Vector2(1.0, 0.5)
+		_ring_tex.width = 256
+		_ring_tex.height = 256
+	return _ring_tex
+
+func begin_aim() -> void:
+	aiming = true
+	if _marker == null:
+		_marker = Decal.new()
+		_marker.texture_albedo = _ring()
+		_marker.texture_emission = _ring()
+		_marker.emission_energy = 0.6
+		_marker.size = Vector3((SPREAD + 0.8) * 2.0, 6.0, (SPREAD + 0.8) * 2.0)
+		_marker.upper_fade = 0.3
+		_marker.lower_fade = 0.3
+		world().add_child(_marker)
+	_target = _aim_point()
+	_marker.global_position = _target
+
+func cancel_aim() -> void:
+	aiming = false
+	if _marker and not active:
+		_marker.queue_free()
+		_marker = null
+
+## Where the camera's centre ray hits the world (ground or rooftop), clamped
+## to AIM_RANGE from the player.
+func _aim_point() -> Vector3:
+	var cam := player.get_viewport().get_camera_3d()
+	if cam == null:
+		return _pick_target()
+	var from := cam.global_position
+	var to := from - cam.global_basis.z * 80.0
+	var q := PhysicsRayQueryParameters3D.create(from, to, 1)
+	q.exclude = [player.get_rid()]
+	var hit := player.get_world_3d().direct_space_state.intersect_ray(q)
+	var p: Vector3 = hit["position"] if hit else Vector3(to.x, 0.0, to.z)
+	var flat := Vector3(p.x - player.global_position.x, 0.0, p.z - player.global_position.z)
+	if flat.length() > AIM_RANGE:
+		flat = flat.normalized() * AIM_RANGE
+		p = Vector3(player.global_position.x + flat.x, p.y, player.global_position.z + flat.z)
+	return p
 
 func _activate() -> void:
-	_target = _pick_target()
+	if not aiming:
+		_target = _pick_target()      # quick-cast fallback (no aim step)
 	_clock = 0.0
 	_queue.clear()
 	var rng := RandomNumberGenerator.new()
@@ -36,15 +101,11 @@ func _activate() -> void:
 		for i in PER_VOLLEY:
 			var off := Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)).limit_length(1.0) * SPREAD
 			_queue.append([0.45 + v * VOLLEY_GAP + i * 0.05, off])
-	# Ground mark: a glowing ring that warns where fire will fall.
-	_marker = MeshInstance3D.new()
-	var ring := TorusMesh.new()
-	ring.inner_radius = SPREAD + 0.6
-	ring.outer_radius = SPREAD + 0.9
-	_marker.mesh = ring
-	_marker.material_override = glow_mat(Color(1.0, 0.25, 0.05), 4.0)
-	world().add_child(_marker)
-	_marker.global_position = _target + Vector3(0, 0.05, 0)
+	# Keep the (subtle) ground ring as the warning while fire falls.
+	if _marker == null:
+		begin_aim()
+		aiming = false
+	_marker.global_position = _target
 
 func _pick_target() -> Vector3:
 	var cam := player.get_viewport().get_camera_3d()
@@ -65,6 +126,9 @@ func _pick_target() -> Vector3:
 	return Vector3(p.x, 0.0, p.z)
 
 func _process(delta: float) -> void:
+	if aiming and not active and _marker:
+		_target = _aim_point()
+		_marker.global_position = _marker.global_position.lerp(_target, 1.0 - exp(-20.0 * delta))
 	if not active:
 		_tick_burns(delta)
 		return
@@ -130,7 +194,7 @@ func _spawn_meteor(ground: Vector3) -> void:
 	_meteors.append([node, start, ground + Vector3(0, 0.3, 0), 0.0])
 
 func _impact(p: Vector3) -> void:
-	burst(p, Color(1.0, 0.45, 0.08), 36, 9.0, 0.7, 0.3, 1.0)
+	burst(p, Color(0.75, 0.28, 0.05), 22, 8.0, 0.5, 0.16, 1.0)
 	burst(p, Color(0.12, 0.09, 0.09, 0.6), 16, 3.0, 1.2, 1.2, 0.1, false)   # smoke
 	for e in enemies_near(p, IMPACT_R):
 		var away: Vector3 = (e as Node3D).global_position - p

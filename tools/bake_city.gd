@@ -15,7 +15,7 @@ extends SceneTree
 const CITY := preload("res://assets/city/manhattan.glb")
 const FLESH_MAT := preload("res://assets/shaders/flesh_hell_material.tres")
 const MERGED_SHADER := preload("res://assets/shaders/building_hell_merged.gdshader")
-const CITY_SCALE := 2.4
+const CITY_SCALE := 1.0   # must match main.gd (real-world metres)
 const CHUNK := 120.0
 const OUT := "res://assets/city/chunks/"
 

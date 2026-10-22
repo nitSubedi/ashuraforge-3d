@@ -41,6 +41,7 @@ func _spawn_body() -> void:
 	add_child(_body)
 	for m in _meshes(_body):
 		m.material_override = _mat
+		m.material_overlay = _rim()
 	_anim = _body.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	if _anim != null and _anim.has_animation("idle"):
 		_anim.play("idle")
@@ -157,6 +158,17 @@ func _make_gib(mi: MeshInstance3D, impulse: Vector3) -> void:
 	t.autostart = true
 	gib.add_child(t)
 	t.timeout.connect(gib.queue_free)
+
+static var _rim_mat: ShaderMaterial
+
+## Hot red rim so demons separate from the red world.
+static func _rim() -> ShaderMaterial:
+	if _rim_mat == null:
+		_rim_mat = ShaderMaterial.new()
+		_rim_mat.shader = preload("res://assets/shaders/rim.gdshader")
+		_rim_mat.set_shader_parameter("rim_color", Color(1.0, 0.38, 0.22))
+		_rim_mat.set_shader_parameter("strength", 0.45)
+	return _rim_mat
 
 func _meshes(n: Node) -> Array:
 	var out: Array = []

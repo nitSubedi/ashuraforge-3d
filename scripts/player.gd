@@ -142,6 +142,13 @@ var driver: AnimDriver
 const AbilitySystem := preload("res://scripts/abilities/ability_system.gd")
 var abilities: AbilitySystem
 var flying := false               # Wraithwing: the ability steers flight_velocity
+const FX := preload("res://scripts/fx/fx.gd")
+const PostFX := preload("res://scripts/fx/post_fx.gd")
+const WeaponTrail := preload("res://scripts/fx/weapon_trail.gd")
+const RIM := preload("res://assets/shaders/rim.gdshader")
+const BASE_FOV := 58.0   # close over-shoulder framing (GoW/Witcher-like)
+var _trail_weapon: WeaponTrail
+var _trail_feet: Array = []
 var flight_velocity := Vector3.ZERO
 @onready var spring_arm: SpringArm3D = $CameraPivot/SpringArm3D
 @onready var muzzle: Marker3D = $Muzzle
@@ -205,6 +212,7 @@ func _ready() -> void:
 	abilities.name = "Abilities"
 	add_child(abilities)
 	abilities.setup(self)
+	_setup_fx()
 	model.rotation.y = PI + model_yaw_offset  # face into the room, away from the camera
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -212,6 +220,13 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	var target := get_global_transform_interpolated().origin + CAM_HEIGHT
 	camera_pivot.global_position = camera_pivot.global_position.lerp(target, 1.0 - exp(-CAM_FOLLOW * delta))
+	# FOV push sells speed: a little on lunges, more in Wraithwing flight.
+	var want_fov := BASE_FOV
+	if flying:
+		want_fov += 12.0
+	elif _attacking and _target != null and _in_wind_up():
+		want_fov += 5.0
+	camera.fov = lerpf(camera.fov, want_fov, 1.0 - exp(-8.0 * delta))
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _dead:
@@ -244,6 +259,7 @@ func _physics_process(delta: float) -> void:
 			return
 		driver.time_scale = 1.0
 	_update_attack(delta)
+	_update_trails()
 	if flying:
 		velocity = flight_velocity
 		move_and_slide()
@@ -347,6 +363,66 @@ func on_ability_hit(e: Node) -> void:
 
 func add_trauma(amount: float) -> void:
 	_trauma = minf(1.0, _trauma + amount)
+	var pf := PostFX.get_instance(get_tree())
+	if pf:
+		pf.pulse(amount * 1.4)
+
+## --- presentation (trails, rim) ---------------------------------------------
+
+func _setup_fx() -> void:
+	# Weapon trail between markers on the cane-sword (grip area -> tip).
+	if _cane:
+		var base := Node3D.new()
+		base.position = Vector3(0, -0.12, 0)
+		_cane.add_child(base)
+		var tip := Node3D.new()
+		tip.position = Vector3(0, -0.8, 0)
+		_cane.add_child(tip)
+		_trail_weapon = WeaponTrail.new()
+		_trail_weapon.base = base
+		_trail_weapon.tip = tip
+		add_child(_trail_weapon)
+	# Kick arcs: ankle -> toe on each foot.
+	var skel := model.find_children("*", "Skeleton3D", true, false)
+	if not skel.is_empty():
+		for side in ["Left", "Right"]:
+			var pts := []
+			for bone in ["Foot", "ToeBase"]:
+				var at := BoneAttachment3D.new()
+				at.bone_name = "mixamorig_%s%s" % [side, bone]
+				skel[0].add_child(at)
+				pts.append(at)
+			var tr := WeaponTrail.new()
+			tr.base = pts[0]
+			tr.tip = pts[1]
+			tr.color = Color(1.0, 0.55, 0.4)
+			tr.intensity = 0.35
+			tr.length = 8
+			add_child(tr)
+			_trail_feet.append(tr)
+	# Rim light on skin/clothes (not the alpha-card hair/brows/lashes or eyes).
+	var rim := ShaderMaterial.new()
+	rim.shader = RIM
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var n := String(mi.name)
+		if n.contains("long01") or n.contains("eyebrow") or n.contains("eyelash") or n.contains("high-poly") \
+				or (_cane != null and _cane.is_ancestor_of(mi)):
+			continue
+		(mi as MeshInstance3D).material_overlay = rim
+
+## Trails show only around each move's strike window.
+func _update_trails() -> void:
+	var live := false
+	if _attacking and _combo != "":
+		var t := driver.action_time
+		for h in _nodes[_combo]["hits"]:
+			if t >= float(h[0]) - 0.1 and t <= float(h[1]) + 0.04:
+				live = true
+	var kick := live and _is_kick(_combo_clip)
+	if _trail_weapon:
+		_trail_weapon.emitting = live and not kick
+	for tr in _trail_feet:
+		tr.emitting = kick
 
 ## Wraithwing: hide the body inside the smoke, i-frames, no gravity/attacks.
 func set_flying(on: bool) -> void:
@@ -536,6 +612,18 @@ func _on_hit_landed(node: Dictionary) -> void:
 	for b in _hit_bodies:
 		if is_instance_valid(b) and b.has_method(&"hitstop"):
 			b.hitstop(stop)
+	# Contact feedback: steel sparks at the hit point + a chromatic pulse
+	# (a warm flash too on finishers).
+	for b in _hit_bodies:
+		if is_instance_valid(b):
+			var to_me: Vector3 = global_position - b.global_position
+			to_me.y = 0.0
+			FX.sparks(get_tree().current_scene, b.global_position + Vector3(0, 1.15, 0) + to_me.normalized() * 0.35, to_me + Vector3.UP * 0.5)
+	var pf := PostFX.get_instance(get_tree())
+	if pf:
+		pf.pulse(0.7 if heavy else 0.22)
+		if heavy:
+			pf.flash(Color(1.0, 0.82, 0.68), 0.1)
 
 func _update_camera_shake(delta: float) -> void:
 	_trauma = maxf(0.0, _trauma - 2.2 * delta)
